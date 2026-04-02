@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threads 認知系ジェネレーター</title>
+<style>
+  :root {
+    --bg: #080808;
+    --surface: #111;
+    --surface2: #181818;
+    --border: #222;
+    --border2: #2e2e2e;
+    --text: #f0f0f0;
+    --text2: #999;
+    --text3: #555;
+    --accent: #fff;
+    --accent-bg: #1a1a1a;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .container { max-width: 680px; margin: 0 auto; padding: 28px 18px 60px; }
+
+  /* Header */
+  .app-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .app-header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
+  }
+  .app-header p {
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 1px;
+    margin-bottom: 22px;
+    background: var(--border);
+    border-radius: 12px;
+    padding: 3px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 9px 6px;
+    border: none;
+    background: transparent;
+    color: var(--text3);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.18s;
+    letter-spacing: 0.01em;
+  }
+  .tab-btn.active {
+    background: var(--surface2);
+    color: var(--accent);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Section card */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 13px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .section-hint {
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* Chips */
+  .chip-group { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip {
+    padding: 6px 13px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    transition: all 0.14s;
+    line-height: 1.4;
+  }
+  .chip:hover:not(.selected) {
+    border-color: #555;
+    color: var(--text);
+    background: var(--surface2);
+  }
+  .chip.selected {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
+
+  /* Collapsible free input */
+  .free-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text3);
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
+    font-family: inherit;
+    transition: color 0.14s;
+  }
+  .free-toggle:hover { color: var(--text2); }
+  .free-toggle .arrow { transition: transform 0.18s; display: inline-block; }
+  .free-toggle.open .arrow { transform: rotate(90deg); }
+  .free-input-wrap {
+    display: none;
+    margin-top: 8px;
+  }
+  .free-input-wrap.open { display: block; }
+
+  /* Inputs */
+  textarea, input[type="text"], input[type="password"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 13px;
+    padding: 9px 11px;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.18s;
+  }
+  textarea:focus, input:focus { border-color: #444; }
+  .input-label {
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 5px;
+  }
+
+  /* Kaiunbi */
+  #kaiunbiSection { display: none; margin-top: 10px; }
+  #kaiunbiSection.visible { display: block; }
+
+  /* API key */
+  .apikey-row { display: flex; gap: 8px; align-items: center; }
+  .apikey-row input { flex: 1; }
+  .toggle-pw {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text3);
+    border-radius: var(--radius-sm);
+    padding: 9px 13px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    transition: color 0.14s, border-color 0.14s;
+  }
+  .toggle-pw:hover { color: var(--text); border-color: #444; }
+
+  /* Count selector */
+  .count-group { display: flex; gap: 8px; }
+  .count-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    transition: all 0.14s;
+  }
+  .count-btn:hover:not(.selected) { border-color: #555; color: var(--text); }
+  .count-btn.selected { border-color: var(--accent); background: var(--accent); color: #000; }
+
+  /* Generate button */
+  .generate-btn {
+    width: 100%;
+    padding: 15px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: opacity 0.18s, transform 0.12s;
+    letter-spacing: 0.02em;
+  }
+  .generate-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+  .generate-btn:active { transform: translateY(0); }
+  .generate-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  /* Results */
+  .result-area { margin-top: 18px; }
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .result-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .result-num {
+    font-size: 11px;
+    color: var(--text3);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .result-charcount {
+    font-size: 11px;
+    color: var(--text3);
+  }
+  .result-text {
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+  }
+  .copy-btn {
+    padding: 5px 13px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text2);
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.14s;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+  .copy-btn.copied { background: #1a3520; color: #7ef7a0; border-color: #1e4a2a; }
+  .analysis-link-btn {
+    padding: 5px 13px;
+    background: transparent;
+    border: 1px solid #2a4a6a;
+    border-radius: 6px;
+    color: #7eb8f7;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .analysis-link-btn:hover { background: #1e3a6e; border-color: #7eb8f7; }
+  .analysis-card.highlight {
+    border-color: #7eb8f7;
+    box-shadow: 0 0 0 2px rgba(126,184,247,0.2);
+    transition: all 0.3s;
+  }
+
+  /* Analysis */
+  .analysis-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+  .analysis-post-num { font-size: 11px; font-weight: 700; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .analysis-preview {
+    font-size: 13px;
+    color: var(--text2);
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+    max-height: 80px;
+    overflow: hidden;
+  }
+  .analysis-body { font-size: 13px; color: #bbb; line-height: 1.7; }
+  .analysis-body strong { color: var(--text2); }
+
+  /* Ref list */
+  .ref-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-right: 6px;
+    margin-bottom: 7px;
+  }
+  .badge-builtin { background: #1e3a5f; color: #7eb8f7; }
+  .badge-user { background: #1e4a2a; color: #7ee89a; }
+
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-right: 4px; margin-bottom: 4px; }
+  .tag-ranking { background: #1e3a6e; color: #7eb8f7; }
+  .tag-month   { background: #3a1e5f; color: #c07ef7; }
+  .tag-year    { background: #3a2e1e; color: #f7a07e; }
+  .tag-simple  { background: #252525; color: #888; }
+  .tag-kaiunbi { background: #3a3010; color: #f7d07e; }
+  .tag-money   { background: #1a3520; color: #7ef7a0; }
+  .tag-love    { background: #3a1e2a; color: #f77eb8; }
+  .tag-overall { background: #1e2a3a; color: #7eb8f7; }
+  .tag-work    { background: #3a2a1e; color: #f7c07e; }
+  .tag-purify  { background: #1e3535; color: #7ef7f0; }
+  .tag-kansai  { background: #2a1e3a; color: #d07ef7; }
+  .tag-gentle  { background: #1e2e1e; color: #a0d07e; }
+  .ref-tags { margin-bottom: 8px; }
+
+  .ref-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 16px 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ref-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 13px 15px;
+    margin-bottom: 8px;
+  }
+  .ref-card-text {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text2);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .ref-list-container { padding: 2px; }
+
+  /* Status & Loading */
+  .status {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text3);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px;
+    color: var(--text3);
+    font-size: 13px;
+  }
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Divider */
+  .divider { height: 1px; background: var(--border); margin: 6px 0 14px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="app-header">
+    <h1>Threads 認知系ジェネレーター</h1>
+    <p>参考投稿をもとに、バズる認知系投稿を自動生成</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('generate')">投稿を生成</button>
+    <button class="tab-btn" onclick="switchTab('analysis')">参考元の分析</button>
+    <button class="tab-btn" onclick="switchTab('refs')">参考投稿一覧</button>
+  </div>
+
+  <!-- TAB 1: Generate -->
+  <div id="tab-generate" class="tab-content active">
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">Claude API キー</span>
+      </div>
+      <div class="apikey-row">
+        <input type="password" id="apiKey" placeholder="sk-ant-api03-..." oninput="saveApiKey()" />
+        <button class="toggle-pw" onclick="togglePw()">表示</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">投稿の型</span>
+        <span class="section-hint">複数選択可</span>
+      </div>
+      <div class="chip-group" id="typeGroup">
+        <button class="chip" onclick="toggleChip(this,'type','ranking')">星座ランキング</button>
+        <button class="chip" onclick="toggleChip(this,'type','month')">生まれ月</button>
+        <button class="chip" onclick="toggleChip(this,'type','year')">生年</button>
+        <button class="chip" onclick="toggleChip(this,'type','simple')">シンプル断言</button>
+        <button class="chip" onclick="toggleChip(this,'type','kaiunbi')">開運日型</button>
+      </div>
+      <div id="kaiunbiSection">
+        <div class="divider"></div>
+        <div class="input-label">近日の開運日（例：4月5日 一粒万倍日×天赦日）</div>
+        <input type="text" id="kaiunbiInput" placeholder="空白の場合はAIが設定" />
+      </div>
+      <button class="free-toggle" onclick="toggleFree(this,'typeFreeWrap')">
+        <span class="arrow">▶</span> その他・補足を追加
+      </button>
+      <div class="free-input-wrap" id="typeFreeWrap">
+        <div class="input-label" style="margin-top:2px;">例：干支型、地域の方言型</div>
+        <textarea id="typeFree" rows="2" placeholder="自由に記入"></textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">トーン</span>
+        <span class="section-hint">複数選択可</span>
+      </div>
+      <div class="chip-group" id="toneGroup">
+        <button class="chip" onclick="toggleChip(this,'tone','standard')">標準語・丁寧</button>
+        <button class="chip" onclick="toggleChip(this,'tone','kansai')">関西弁</button>
+        <button class="chip" onclick="toggleChip(this,'tone','gentle')">やさしい語りかけ</button>
+      </div>
+      <button class="free-toggle" onclick="toggleFree(this,'toneFreeWrap')">
+        <span class="arrow">▶</span> その他・補足を追加
+      </button>
+      <div class="free-input-wrap" id="toneFreeWrap">
+        <div class="input-label" style="margin-top:2px;">例：博多弁、ミステリアスな口調</div>
+        <textarea id="toneFree" rows="2" placeholder="自由に記入"></textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">テーマ</span>
+        <span class="section-hint">複数選択可</span>
+      </div>
+      <div class="chip-group" id="themeGroup">
+        <button class="chip" onclick="toggleChip(this,'theme','money')">金運・臨時収入</button>
+        <button class="chip" onclick="toggleChip(this,'theme','love')">恋愛・良い縁</button>
+        <button class="chip" onclick="toggleChip(this,'theme','overall')">全体運・好転</button>
+        <button class="chip" onclick="toggleChip(this,'theme','work')">仕事・チャンス</button>
+        <button class="chip" onclick="toggleChip(this,'theme','purify')">浄化・厄落ち</button>
+      </div>
+      <button class="free-toggle" onclick="toggleFree(this,'themeFreeWrap')">
+        <span class="arrow">▶</span> その他・補足を追加
+      </button>
+      <div class="free-input-wrap" id="themeFreeWrap">
+        <div class="input-label" style="margin-top:2px;">例：健康運、受験、家族縁</div>
+        <textarea id="themeFree" rows="2" placeholder="自由に記入"></textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">参考投稿</span>
+        <span class="section-hint">貼り付けると自動保存</span>
+      </div>
+      <textarea id="userRefs" rows="6" placeholder="バズった投稿・真似したい投稿をここに貼り付け&#10;複数ある場合はそのまま続けて貼ってOK" oninput="saveUserRefs(); renderRefList()"></textarea>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">生成本数</span>
+      </div>
+      <div class="count-group" id="countGroup">
+        <button class="count-btn selected" onclick="selectCount(this, 3)">3本</button>
+        <button class="count-btn" onclick="selectCount(this, 5)">5本</button>
+        <button class="count-btn" onclick="selectCount(this, 10)">10本</button>
+      </div>
+    </div>
+
+    <button class="generate-btn" id="generateBtn" onclick="generate()">投稿を生成する</button>
+
+    <div class="result-area" id="resultArea"></div>
+  </div>
+
+  <!-- TAB 2: Analysis -->
+  <div id="tab-analysis" class="tab-content">
+    <div id="analysisArea">
+      <div class="status">「投稿を生成」タブで生成すると<br>ここに参考元の分析が表示されます</div>
+    </div>
+  </div>
+
+  <!-- TAB 3: Ref List -->
+  <div id="tab-refs" class="tab-content">
+    <div class="ref-list-container" id="refListArea"></div>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+const selections = { type: [], tone: [], theme: [] };
+let generateCount = 3;
+let lastGeneratedPosts = [];
+
+// ===== BUILT-IN SAMPLES (38本) =====
+const TYPE_LABEL = { ranking:'星座ランキング型', month:'生まれ月型', year:'生年型', simple:'シンプル断言型', kaiunbi:'開運日型' };
+const THEME_LABEL = { money:'金運', love:'恋愛', overall:'全体運', work:'仕事', purify:'浄化' };
+const TONE_LABEL = { standard:'標準語', kansai:'関西弁', gentle:'やさしい' };
+
+const builtinSamples = [
+  // --- PDF1: 認知系 28本 ---
+  `12星座ランキング🌟
+
+運気が上がる順番
+
+1位 さそり座
+2位 おひつじ座
+3位 てんびん座
+4位 おうし座
+5位 みずがめ座
+6位 かに座
+7位 ふたご座
+8位 やぎ座
+9位 しし座
+10位 いて座
+11位 おとめ座
+12位 うお座
+
+あなたの星座は何位でしたか？
+1位の方、今週臨時収入が入る予感👇
+気になる絵文字を置いていってください
+
+💰`,
+
+  `今すぐ見てください
+
+今年の金運ランキング
+
+あなたの生まれ月は何月ですか？
+
+1月生まれ → 大きなチャンスが来る
+2月生まれ → 予想外の収入あり
+3月生まれ → 良いご縁がつながる
+4月生まれ → 願いが叶いやすい
+5月生まれ → 臨時収入の予感
+6月生まれ → 転機が訪れる
+7月生まれ → 金運が急上昇
+8月生まれ → 大きな変化がある
+9月生まれ → 仕事に追い風
+10月生まれ → 恋愛運が高まる
+11月生まれ → 思わぬ幸運が来る
+12月生まれ → 全体運が開ける
+
+あなたの月を絵文字でチェック☑️`,
+
+  `黙ってられない
+
+これを見た人に知らせたい
+
+昭和40年代生まれ → 大逆転の時期
+昭和50年代生まれ → 金運が開く年
+昭和60年生まれ → 転換期に入る
+平成元年〜5年生まれ → チャンス到来
+平成6年〜10年生まれ → 運気が急上昇
+平成11年〜15年生まれ → 新しい扉が開く
+平成16年〜20年生まれ → 縁が大きく動く
+平成21年以降生まれ → 未来が明るくなる
+
+あなたの生年代に✋を置いていって`,
+
+  `緊急です
+
+今これを見ている人だけに伝えます
+
+今日から3日以内に
+連絡が来る人がいます
+
+気になる人がいる方
+いいねして待っていてください
+
+💌`,
+
+  `無視したら損するかも
+
+見えた人だけに教えます
+
+あなたに今月
+臨時収入が入る予兆があります
+
+受け取れる準備ができている方だけ
+⭐をポチっとしてください`,
+
+  `12星座 今週の運勢ランキング
+
+1位 ふたご座 ← 大当たり週
+2位 さそり座 ← 金運爆上がり
+3位 おひつじ座 ← 恋愛に追い風
+4位 いて座 ← 仕事が好転
+5位 てんびん座 ← 良縁が来る
+6位 みずがめ座 ← チャンスあり
+7位 うお座 ← 直感が冴える
+8位 かに座 ← 人間関係が良化
+9位 おうし座 ← 努力が実る
+10位 しし座 ← 変化の予兆
+11位 おとめ座 ← じっくり期
+12位 やぎ座 ← 準備の時期
+
+1位のふたご座の方！
+今週中に嬉しい知らせが来ます🌟
+あなたの星座どこ？コメントで教えて`,
+
+  `関西のみなさんに言わせてもらいます
+
+これ見た人は今週絶対ええことあるで
+
+信じるか信じへんかはあなた次第やけど
+ほんまに来るから
+
+ええことが来る準備できてる人だけ
+❤️置いといて`,
+
+  `見えた人おめでとうございます
+
+あなたに今
+
+「好きな人からの連絡」
+「臨時収入」
+「思わぬ良いご縁」
+
+のどれかが近づいています
+
+どれが来てほしいですか？
+絵文字を置いてください
+
+💌 → 好きな人から連絡
+💰 → 臨時収入
+🌸 → 良いご縁`,
+
+  `謝ります
+
+さっきこれを流そうか迷っていたんですが
+勇気出して書きます
+
+今見ているあなた
+近いうちに状況が変わります
+
+良い方向に動き出す準備が
+もう始まっています
+
+信じてくれる方だけ
+👍を押しておいてください`,
+
+  `生まれた季節で運気が変わります
+
+春生まれ（3・4・5月）→ 対人運が高い
+夏生まれ（6・7・8月）→ 金運が安定
+秋生まれ（9・10・11月）→ 仕事運が開く
+冬生まれ（12・1・2月）→ 直感が冴える時期
+
+あなたはどの季節生まれ？
+季節の絵文字を置いていってください🌸☀️🍂❄️`,
+
+  `今日見た人に告げます
+
+あなたの願いは
+諦めなければ必ず叶います
+
+今が一番しんどくても
+もう少しだけ待ってみてください
+
+応援している方
+いいねだけしていってください`,
+
+  `緊急告知
+
+12星座の中で
+今年最も運気が爆発するのは
+
+さそり座・おひつじ座・ふたご座
+
+この3星座の人
+今すぐいいねしておいてください
+本当に大事なことが起きます`,
+
+  `平成生まれの人だけ見てください
+
+平成1〜5年 → 大きな転機が来る
+平成6〜10年 → 臨時収入の予兆
+平成11〜15年 → 恋愛に動きあり
+平成16〜20年 → 仕事運が急上昇
+平成21〜25年 → 良いご縁がつながる
+平成26年以降 → 才能が開花する
+
+あなたは何年生まれ？
+数字をコメントで教えて`,
+
+  `今すぐこれを保存してください
+
+保存した人に
+今月中に嬉しいことが起きます
+
+本当です
+試しに保存してみてください📌`,
+
+  `北海道・東北の方へ
+
+あなたたちは今
+とても大きな運気の波が来ています
+
+関東・中部の方へ
+今年後半から流れが変わります
+
+関西・中国・四国の方へ
+今が動き時です
+
+九州・沖縄の方へ
+良いご縁が近づいています
+
+あなたはどこ出身？絵文字で教えて🗾`,
+
+  `今週これを見た人の運気
+
+月曜に見た人 → 金運上昇
+火曜に見た人 → 恋愛運が高まる
+水曜に見た人 → 仕事に追い風
+木曜に見た人 → 人間関係が好転
+金曜に見た人 → 臨時収入の予感
+土曜に見た人 → 全体運が上がる
+日曜に見た人 → 大きな転機が来る
+
+今日は何曜日？あなたの運気をチェック👇`,
+
+  `これ見えた人だけに言います
+
+あなたの名前の画数は何画ですか？
+
+一桁の方 → 直感力が高まる
+二桁の方 → 金運に動きあり
+三桁の方 → 対人運が上がる
+
+わからない方はラッキーナンバーを
+コメントに書いてください🔢`,
+
+  `Oタイプの人聞いてください
+今あなたに大きなチャンスが来ています
+
+Aタイプの人聞いてください
+今月中に嬉しいことが起きます
+
+Bタイプの人聞いてください
+良い縁が近づいています
+
+ABタイプの人聞いてください
+直感を信じる時です
+
+あなたは何型？コメントで教えて`,
+
+  `急いで言います
+
+今これを見ているあなた
+48時間以内に
+
+・ずっと気になっていた人から連絡
+・予期せぬ臨時収入
+・ずっと悩んでいたことの解決
+
+のどれかが起きます
+
+準備できていますか？
+✅を置いていってください`,
+
+  `大阪の人に言わせてもらうわ
+
+これ見たら絶対ええことあるで
+
+ほんまやって
+去年これ見た人から
+「本当に来ました！」って連絡めっちゃきたんやから
+
+信じる人だけ❤️してってや`,
+
+  `12星座 今月臨時収入ランキング
+
+💰第1位：てんびん座
+💰第2位：さそり座
+💰第3位：みずがめ座
+💴第4位：おひつじ座
+💴第5位：いて座
+💴第6位：ふたご座
+💵第7位：おうし座
+💵第8位：かに座
+💵第9位：しし座
+🪙第10位：うお座
+🪙第11位：やぎ座
+🪙第12位：おとめ座
+
+1〜3位の方！今月本当に来ます
+絵文字でリアクションしていってください`,
+
+  `昭和生まれの方に伝えます
+
+昭和40年代 → 今年が人生の転換点
+昭和50年代 → 金運が大きく動く
+昭和60年代 → 仕事に大きなチャンス
+
+平成生まれの方に伝えます
+
+平成一桁生まれ → 恋愛に動きあり
+平成10年代生まれ → 才能が開花する
+平成20年代生まれ → 新しい出会いがある
+
+令和生まれの子へ
+あなたの未来は明るい
+
+世代の絵文字置いていって🕰️`,
+
+  `今日これを見たあなたへ
+
+今あなたに
+「運気の転換点」が来ています
+
+何か新しいことを始めようとしている方
+今がそのタイミングです
+
+踏み出す勇気がある方
+❤️を押していってください`,
+
+  `緊急速報
+
+今週末に
+金運が急激に上がる人がいます
+
+条件はただ一つ
+今日これを見たこと
+
+あとは何もしなくていいです
+ただ受け取ってください
+
+受け取れる方は👍を`,
+
+  `ちょっと待って
+
+これ本当のことだから聞いてほしいんだけど
+
+今あなたが悩んでいること
+もうすぐ解決します
+
+信じてくれる人だけ
+コメントに「解決します」って書いてください`,
+
+  `12星座 今週恋愛運ランキング
+
+💗1位 うお座 → 告白が成功する
+💗2位 かに座 → 新しい出会いあり
+💗3位 さそり座 → 関係が深まる
+💛4位 てんびん座 → 気になる人から連絡
+💛5位 おうし座 → 良い縁がつながる
+💛6位 おひつじ座 → 恋愛運上昇中
+💚7位 ふたご座 → 友達以上に発展
+💚8位 いて座 → 再会の予感
+💚9位 みずがめ座 → 運命の人と近い
+🤍10位 しし座 → 自己磨きの時期
+🤍11位 やぎ座 → 縁が整う時
+🤍12位 おとめ座 → 準備が整う月
+
+あなたの星座は何位？`,
+
+  `今見えたあなた
+
+来月あなたに
+
+💰 → 臨時収入
+💌 → 大切な連絡
+🌺 → 嬉しい変化
+
+絶対どれかが来ます
+
+受け取る準備ができている方は
+絵文字を置いていってください`,
+
+  `関西弁で言わせてほしいんやけど
+
+これ見た人全員に言うわ
+
+あなた今しんどいやろ？
+でもな、もうすぐ終わるで
+
+ほんまに終わるから
+もうちょっとだけ待ってて
+
+応援してる
+❤️置いといて`,
+
+  // --- PDF2: 開運・金運系 10本 ---
+  `【緊急】今日絶対見てください
+
+明日は
+一粒万倍日 × 天赦日
+
+年に数回しかない
+最強の開運日です
+
+この日にやると効果が高いこと
+・財布を使い始める
+・新しいことを始める
+・大切な人に連絡する
+
+明日に向けて今日から
+金運を受け取る準備をしてください
+
+準備できた方は💰を置いてください`,
+
+  `今日は大安 × 一粒万倍日
+
+この組み合わせは年に数回しかない
+
+金運が一気に動く日です
+
+今日財布を触った方
+新しいお金の使い方を考えた方
+
+それ正解です
+
+今日いいねした方に
+今月中に臨時収入が来ます
+
+信じる方だけ❤️`,
+
+  `干支ランキング 今年の金運
+
+🐉辰年生まれ → 龍の年、大開運
+🐯寅年生まれ → チャンスが来る
+🐉巳年生まれ → 金運が急上昇
+🐇卯年生まれ → 良い縁がつながる
+🐂丑年生まれ → 安定した収入増
+🐀子年生まれ → 新しい扉が開く
+🐴午年生まれ → 行動が実を結ぶ
+🐑未年生まれ → 人気運が高まる
+🐒申年生まれ → 知恵が開花する
+🐓酉年生まれ → こつこつが報われる
+🐕戌年生まれ → 信頼関係が強まる
+🐖亥年生まれ → 粘り勝ちの年
+
+あなたの干支は何番目に来てた？`,
+
+  `浄化してください
+
+今あなたの周りに
+重い気が溜まっています
+
+それが金運・恋愛運・仕事運の
+流れを止めています
+
+今すぐやること
+
+深呼吸を3回
+「ありがとう」と声に出す
+窓を少し開ける
+
+これだけで流れが変わります
+
+浄化できた方は🌿を置いてください`,
+
+  `悪縁を断ち切る日が来ました
+
+今月、あなたの周りにいる
+エネルギーを奪う人・場所・もの
+
+少しずつ手放してください
+
+手放した後に必ず
+新しい良いご縁が来ます
+
+今すでに何か手放している方
+✂️を置いていってください`,
+
+  `今日の運気を上げる方法
+
+朝：東の方角を向いて深呼吸
+昼：水を意識的に飲む
+夜：「今日もありがとう」と言う
+
+これだけで1週間の運気が変わります
+
+今日実践した方
+⭐を置いていってください`,
+
+  `厄病神が離れていく投稿です
+
+これを見た瞬間から
+あなたの運気が変わり始めます
+
+今抱えている悩み・不安・重さ
+全部ここに置いていってください
+
+代わりに
+金運・縁・チャンスを持って帰ってください
+
+🙏`,
+
+  `今日は神吉日
+
+神様に祈りが届きやすい日です
+
+今日願ったことが
+現実になりやすいタイミングです
+
+大切な願いがある方
+今日だけ特別に
+
+ここに「叶います」と書いてください
+必ず届けます`,
+
+  `今月金運が爆発する人
+
+・ずっと我慢していた人
+・コツコツ積み上げてきた人
+・人のために動いてきた人
+
+そろそろあなたの番です
+
+受け取る準備ができている方は
+💰を3つ置いていってください
+
+💰💰💰`,
+
+  `寅の日です
+
+この日に財布を新調したり
+金運アップの行動をすると
+
+お金が増えて戻ってくると言われています
+
+今日財布を触った方
+新しいお財布が欲しい方
+
+ここに💰を置いていってください
+一緒に金運を上げましょう`
+];
+
+// ===== METADATA FOR BUILT-IN SAMPLES =====
+// 順番はbuiltinSamplesと完全対応
+const builtinMeta = [
+  // PDF1: 認知系 28本
+  { type:'ranking', theme:'money',   tone:'standard' }, // 1  星座ランキング（金運）
+  { type:'month',   theme:'money',   tone:'standard' }, // 2  生まれ月（金運ランキング）
+  { type:'year',    theme:'overall', tone:'standard' }, // 3  生年（昭和・平成）
+  { type:'simple',  theme:'love',    tone:'standard' }, // 4  緊急・3日以内に連絡
+  { type:'simple',  theme:'money',   tone:'standard' }, // 5  無視したら損（臨時収入）
+  { type:'ranking', theme:'overall', tone:'standard' }, // 6  星座ランキング（今週運勢）
+  { type:'simple',  theme:'overall', tone:'kansai'   }, // 7  関西のみなさん
+  { type:'simple',  theme:'overall', tone:'gentle'   }, // 8  見えた人おめでとう（3択）
+  { type:'simple',  theme:'overall', tone:'gentle'   }, // 9  謝ります
+  { type:'month',   theme:'overall', tone:'standard' }, // 10 生まれた季節（春夏秋冬）
+  { type:'simple',  theme:'overall', tone:'gentle'   }, // 11 今日見た人に告げます
+  { type:'ranking', theme:'overall', tone:'standard' }, // 12 緊急告知（3星座）
+  { type:'year',    theme:'overall', tone:'standard' }, // 13 平成生まれの人
+  { type:'simple',  theme:'overall', tone:'standard' }, // 14 今すぐ保存
+  { type:'simple',  theme:'overall', tone:'standard' }, // 15 北海道・東北（地域別）
+  { type:'simple',  theme:'overall', tone:'standard' }, // 16 今週見た曜日別
+  { type:'simple',  theme:'overall', tone:'standard' }, // 17 名前の画数
+  { type:'simple',  theme:'overall', tone:'standard' }, // 18 血液型
+  { type:'simple',  theme:'overall', tone:'standard' }, // 19 急いで言います（48時間）
+  { type:'simple',  theme:'overall', tone:'kansai'   }, // 20 大阪の人
+  { type:'ranking', theme:'money',   tone:'standard' }, // 21 星座ランキング（臨時収入）
+  { type:'year',    theme:'overall', tone:'standard' }, // 22 昭和・平成・令和
+  { type:'simple',  theme:'overall', tone:'gentle'   }, // 23 今日これを見たあなたへ
+  { type:'simple',  theme:'money',   tone:'standard' }, // 24 緊急速報（今週末金運）
+  { type:'simple',  theme:'overall', tone:'gentle'   }, // 25 ちょっと待って（悩み解決）
+  { type:'ranking', theme:'love',    tone:'standard' }, // 26 星座ランキング（恋愛運）
+  { type:'simple',  theme:'overall', tone:'gentle'   }, // 27 来月あなたに（3択）
+  { type:'simple',  theme:'overall', tone:'kansai'   }, // 28 関西弁で（しんどい）
+  // PDF2: 開運・金運系 10本
+  { type:'kaiunbi', theme:'money',   tone:'standard' }, // 29 一粒万倍日×天赦日（緊急）
+  { type:'kaiunbi', theme:'money',   tone:'standard' }, // 30 大安×一粒万倍日
+  { type:'ranking', theme:'money',   tone:'standard' }, // 31 干支ランキング
+  { type:'simple',  theme:'purify',  tone:'gentle'   }, // 32 浄化してください
+  { type:'simple',  theme:'purify',  tone:'standard' }, // 33 悪縁を断ち切る
+  { type:'simple',  theme:'overall', tone:'standard' }, // 34 今日の運気を上げる方法
+  { type:'simple',  theme:'purify',  tone:'gentle'   }, // 35 厄病神が離れていく
+  { type:'kaiunbi', theme:'overall', tone:'gentle'   }, // 36 今日は神吉日
+  { type:'simple',  theme:'money',   tone:'gentle'   }, // 37 今月金運が爆発する人
+  { type:'kaiunbi', theme:'money',   tone:'standard' }, // 38 寅の日
+];
+
+// ===== HOOKS & EMOJIS (for randomness) =====
+const hookPatterns = [
+  "緊急です","無視したら損するかも","今すぐ見てください","黙ってられない",
+  "これ本当のことだから聞いてほしい","謝ります","ちょっと待って","急いで言います",
+  "これ見えた人だけに言います","信じてもらえるかわからないけど","大事なことを伝えます",
+  "見逃したら後悔するかも","今日中に見てほしい","あなただけに教えます",
+  "これ流していいか迷ったけど","思い切って言います","今これを伝えなきゃと思った",
+  "本当のことを言います","これ偶然じゃないです","引き寄せで来た人へ",
+  "タイムラインに流れてきた人へ","今見ているあなたへ","見えた人おめでとう",
+  "スクロールが止まった人へ","これ保存してください"
+];
+
+const actionEmojis = [
+  "💰","❤️","⭐","👍","✅","💌","🌸","🙏","🔥","✨",
+  "💫","🌟","💎","🪙","💛","🌺","🌿","💜","🎯","💝",
+  "🌙","☀️","✴️","🎉","🤍"
+];
+
+// ===== FREE INPUT TOGGLE =====
+function toggleFree(btn, wrapId) {
+  const wrap = document.getElementById(wrapId);
+  const isOpen = wrap.classList.toggle('open');
+  btn.classList.toggle('open', isOpen);
+}
+
+// ===== CHIP TOGGLE =====
+function toggleChip(el, group, value) {
+  const idx = selections[group].indexOf(value);
+  if (idx === -1) {
+    selections[group].push(value);
+    el.classList.add('selected');
+  } else {
+    selections[group].splice(idx, 1);
+    el.classList.remove('selected');
+  }
+  if (group === 'type') {
+    const kb = document.getElementById('kaiunbiSection');
+    if (selections.type.includes('kaiunbi')) {
+      kb.classList.add('visible');
+    } else {
+      kb.classList.remove('visible');
+    }
+  }
+}
+
+function selectCount(el, n) {
+  generateCount = n;
+  document.querySelectorAll('.count-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// ===== API KEY =====
+function saveApiKey() {
+  const v = document.getElementById('apiKey').value;
+  localStorage.setItem('threads_apikey', v);
+}
+function loadApiKey() {
+  const v = localStorage.getItem('threads_apikey');
+  if (v) document.getElementById('apiKey').value = v;
+}
+function togglePw() {
+  const inp = document.getElementById('apiKey');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+// ===== USER REFS =====
+function saveUserRefs() {
+  const v = document.getElementById('userRefs').value;
+  localStorage.setItem('threads_userRefs', v);
+}
+function loadUserRefs() {
+  const v = localStorage.getItem('threads_userRefs');
+  if (v) document.getElementById('userRefs').value = v;
+}
+
+// ===== TABS =====
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['generate','analysis','refs'][i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'refs') renderRefList();
+}
+
+// ===== REF LIST =====
+function makeTypeTags(meta) {
+  if (!meta) return '';
+  const tl = TYPE_LABEL[meta.type] || meta.type;
+  const thl = THEME_LABEL[meta.theme] || meta.theme;
+  const tonl = TONE_LABEL[meta.tone] || '';
+  let tags = `<span class="tag tag-${meta.type}">${tl}</span>`;
+  tags += `<span class="tag tag-${meta.theme}">${thl}</span>`;
+  if (meta.tone !== 'standard') tags += `<span class="tag tag-${meta.tone}">${tonl}</span>`;
+  return `<div class="ref-tags">${tags}</div>`;
+}
+
+function renderRefList() {
+  const container = document.getElementById('refListArea');
+  const userText = document.getElementById('userRefs').value.trim();
+  let html = '';
+
+  // Built-in — grouped by type
+  const typeOrder = ['ranking','month','year','simple','kaiunbi'];
+  html += `<div style="font-size:13px;color:#555;margin-bottom:14px;">内蔵サンプル ${builtinSamples.length}本</div>`;
+  typeOrder.forEach(t => {
+    const group = builtinSamples.map((s,i) => ({s,i,m:builtinMeta[i]})).filter(x => x.m && x.m.type === t);
+    if (group.length === 0) return;
+    html += `<div style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px;">${TYPE_LABEL[t]} (${group.length}本)</div>`;
+    group.forEach(({s, i, m}) => {
+      html += `<div class="ref-card">
+        <span class="ref-badge badge-builtin">内蔵 #${i+1}</span>
+        ${makeTypeTags(m)}
+        <div class="ref-card-text">${escHtml(s)}</div>
+      </div>`;
+    });
+  });
+
+  // User
+  if (userText) {
+    const userPosts = splitUserPosts(userText);
+    html += `<div style="font-size:13px;color:#555;margin:20px 0 12px;">追加した参考投稿 ${userPosts.length}件</div>`;
+    userPosts.forEach((p, i) => {
+      html += `<div class="ref-card"><span class="ref-badge badge-user">追加 #${i+1}</span><div class="ref-card-text">${escHtml(p)}</div></div>`;
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+function splitUserPosts(text) {
+  // Split by double newline or dashes
+  const parts = text.split(/\n{3,}|---+/).map(s => s.trim()).filter(s => s.length > 10);
+  return parts.length > 0 ? parts : [text.trim()];
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+// ===== GENERATE =====
+async function generate() {
+  const apiKey = document.getElementById('apiKey').value.replace(/[^\x20-\x7E]/g, '').trim();
+  if (!apiKey) { alert('APIキーを入力してください'); return; }
+
+  const types = selections.type;
+  const tones = selections.tone;
+  const themes = selections.theme;
+  const typeFree = document.getElementById('typeFree').value.trim();
+  const toneFree = document.getElementById('toneFree').value.trim();
+  const themeFree = document.getElementById('themeFree').value.trim();
+  const kaiunbiVal = document.getElementById('kaiunbiInput').value.trim();
+  const userRefs = document.getElementById('userRefs').value.trim();
+
+  const typeLabels = { ranking:'星座ランキング型', month:'生まれ月型', year:'生年型', simple:'シンプル断言型', kaiunbi:'開運日型' };
+  const toneLabels = { standard:'標準語・丁寧', kansai:'関西弁', gentle:'やさしい語りかけ' };
+  const themeLabels = { money:'金運・臨時収入', love:'恋愛・良い縁', overall:'全体運・好転', work:'仕事・チャンス', purify:'浄化・厄落ち' };
+
+  const typeStr = [...types.map(t => typeLabels[t]), typeFree].filter(Boolean).join('・') || '指定なし（自由に選択）';
+  const toneStr = [...tones.map(t => toneLabels[t]), toneFree].filter(Boolean).join('・') || '指定なし（自由に選択）';
+  const themeStr = [...themes.map(t => themeLabels[t]), themeFree].filter(Boolean).join('・') || '指定なし（自由に選択）';
+
+  // Shuffle hooks and emojis
+  const seed = Math.floor(Math.random() * 99999);
+  const shuffledHooks = [...hookPatterns].sort(() => Math.random() - 0.5);
+  const shuffledEmojis = [...actionEmojis].sort(() => Math.random() - 0.5);
+  const hookList = shuffledHooks.slice(0, 12).join('・');
+  const emojiList = shuffledEmojis.slice(0, 12).join(' ');
+
+  const kaiunbiInfo = (types.includes('kaiunbi') && kaiunbiVal)
+    ? `\n開運日情報：${kaiunbiVal}` : '';
+
+  // 選択した型に合うサンプルを優先的に抽出（最大6本）、足りなければ他から補完
+  const typeOrder2 = ['ranking','month','year','simple','kaiunbi'];
+  const selectedTypes = types.length > 0 ? types : typeOrder2;
+  let matchedSamples = builtinSamples
+    .map((s, i) => ({ s, m: builtinMeta[i] }))
+    .filter(x => x.m && selectedTypes.includes(x.m.type));
+  if (matchedSamples.length < 4) {
+    const others = builtinSamples.map((s,i)=>({s,m:builtinMeta[i]})).filter(x => !matchedSamples.includes(x));
+    matchedSamples = [...matchedSamples, ...others.slice(0, 6 - matchedSamples.length)];
+  }
+  const samplesForPrompt = matchedSamples.slice(0, 8)
+    .map(x => `[型:${TYPE_LABEL[x.m.type]}][テーマ:${THEME_LABEL[x.m.theme]}][トーン:${TONE_LABEL[x.m.tone]}]\n${x.s}`)
+    .join('\n\n---\n\n');
+
+  const prompt = `あなたはThreads（スレッズ）の認知拡大系・開運系投稿のプロです。
+以下の条件で投稿を${generateCount}本生成してください。
+
+【生成条件】
+- 投稿の型：${typeStr}
+- トーン：${toneStr}
+- テーマ：${themeStr}${kaiunbiInfo}
+- 生成本数：${generateCount}本
+
+【絶対ルール】
+1. ハッシュタグは一切つけない
+2. 参考投稿の文字数感・テンポ・長さを最大限参考にすること。参考投稿が短ければ簡潔に、長ければそれに合わせること
+3. フックは以下の中からバランスよく選び、同じフックの使い回しは厳禁：${hookList}
+4. アクション絵文字は以下の中から毎回違うものを選ぶこと：${emojiList}
+5. 星座ランキング型の場合は12星座をすべてリストアップすること
+6. 生年型の場合は20パターン以上リストアップすること
+7. 複数選択の場合はバランスよくミックスすること
+8. 毎回まったく異なる表現・構造・絵文字を使うこと（ランダムID:${seed}）
+9. 自然な日本語で、実際にバズりそうなリアルな投稿にすること
+
+【参考投稿（型・テーマ・トーンのラベル付き。スタイル・文体・長さを最優先で参考にすること）】
+${samplesForPrompt}
+${userRefs ? `\n【ユーザー追加の参考投稿（最優先で参考にすること）】\n${userRefs}` : ''}
+
+【出力形式】
+各投稿を以下の形式で出力してください：
+
+===投稿1===
+（投稿本文）
+===END===
+
+===投稿2===
+（投稿本文）
+===END===
+
+（以下同様）`;
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  document.getElementById('resultArea').innerHTML = '<div class="loading"><div class="spinner"></div>生成中...</div>';
+  document.getElementById('analysisArea').innerHTML = '<div class="loading"><div class="spinner"></div>分析中...</div>';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const text = data.content[0].text;
+    const posts = parseGeneratedPosts(text);
+    lastGeneratedPosts = posts;
+
+    if (posts.length === 0) throw new Error('投稿の解析に失敗しました');
+
+    renderResults(posts);
+    runAnalysis(posts, apiKey, userRefs);
+
+  } catch (e) {
+    document.getElementById('resultArea').innerHTML = `<div class="status" style="color:#e55">エラーが発生しました: ${escHtml(e.message)}</div>`;
+    document.getElementById('analysisArea').innerHTML = '<div class="status">生成に失敗したため分析できませんでした</div>';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function parseGeneratedPosts(text) {
+  const posts = [];
+  const regex = /===投稿\d+===\s*([\s\S]*?)===END===/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const p = match[1].trim();
+    if (p) posts.push(p);
+  }
+  if (posts.length === 0) {
+    // fallback: split by double newlines
+    const parts = text.split(/\n{3,}/).map(s => s.trim()).filter(s => s.length > 20);
+    return parts;
+  }
+  return posts;
+}
+
+function renderResults(posts) {
+  let html = '';
+  posts.forEach((p, i) => {
+    const charCount = p.replace(/\s/g, '').length;
+    html += `
+      <div class="result-card">
+        <div class="result-card-header">
+          <span class="result-num">投稿 ${i+1}</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="result-charcount">${charCount}文字</span>
+            <button class="analysis-link-btn" onclick="goToAnalysis(${i})">分析を見る →</button>
+            <button class="copy-btn" id="copy-btn-${i}" onclick="copyPost(${i})">コピー</button>
+          </div>
+        </div>
+        <div class="result-text" id="post-${i}">${escHtml(p)}</div>
+      </div>`;
+  });
+  document.getElementById('resultArea').innerHTML = html;
+}
+
+function goToAnalysis(i) {
+  switchTab('analysis');
+  setTimeout(() => {
+    const card = document.getElementById('analysis-card-' + i);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('highlight');
+    setTimeout(() => card.classList.remove('highlight'), 2000);
+  }, 80);
+}
+
+function copyPost(i) {
+  const text = document.getElementById('post-' + i).innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn-' + i);
+    btn.textContent = '✓ コピー済み';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'コピー';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// ===== ANALYSIS =====
+async function runAnalysis(posts, apiKey, userRefs) {
+  const refSamples = builtinSamples.slice(0, 10).join('\n\n---\n\n');
+  const analysisPrompt = `以下の生成された投稿それぞれについて、どの参考投稿のどの要素（フック・型・トーン・アクション誘導など）を参考にしたかを簡潔に日本語で説明してください。
+
+【生成された投稿】
+${posts.map((p, i) => `---投稿${i+1}---\n${p}`).join('\n\n')}
+
+【参考にした投稿サンプル（抜粋）】
+${refSamples}
+${userRefs ? `\n【ユーザー追加参考投稿】\n${userRefs}` : ''}
+
+【出力形式】
+各投稿について以下の形式で出力してください：
+
+===分析1===
+（参考にした要素と理由を2〜3文で）
+===END===
+
+（以下同様）`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: analysisPrompt }]
+      })
+    });
+
+    if (!res.ok) throw new Error(`分析API エラー ${res.status}`);
+    const data = await res.json();
+    const text = data.content[0].text;
+    const analyses = parseAnalyses(text);
+
+    let html = '';
+    posts.forEach((p, i) => {
+      html += `
+        <div class="analysis-card" id="analysis-card-${i}">
+          <div class="analysis-post-num">投稿 ${i+1}</div>
+          <div class="analysis-preview">${escHtml(p.substring(0, 100))}${p.length > 100 ? '…' : ''}</div>
+          <div class="analysis-body"><strong>参考にした要素：</strong><br>${escHtml(analyses[i] || '（分析データなし）')}</div>
+        </div>`;
+    });
+    document.getElementById('analysisArea').innerHTML = html;
+
+  } catch (e) {
+    document.getElementById('analysisArea').innerHTML = `<div class="status" style="color:#e55">分析エラー: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function parseAnalyses(text) {
+  const results = [];
+  const regex = /===分析\d+===\s*([\s\S]*?)===END===/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    results.push(match[1].trim());
+  }
+  return results;
+}
+
+// ===== INIT =====
+window.onload = function() {
+  loadApiKey();
+  loadUserRefs();
+  renderRefList();
+};
+</script>
+</body>
+</html>
