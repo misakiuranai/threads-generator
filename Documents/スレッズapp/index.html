@@ -1609,7 +1609,10 @@ async function fetchBuzzPosts() {
     const data = await res.json();
 
     if (!data.posts || data.posts.length === 0) {
-      document.getElementById('buzzArea').innerHTML = '<div class="status">投稿が見つかりませんでした</div>';
+      const errMsg = data.errors && data.errors.length > 0
+        ? data.errors.join('<br>')
+        : 'Threadsから投稿を取得できませんでした。<br>アカウントに投稿がないか、APIの権限が不足している可能性があります。';
+      document.getElementById('buzzArea').innerHTML = `<div class="status" style="color:#e55;">投稿が見つかりませんでした<br><br><small style="color:#777;">${errMsg}</small></div>`;
       return;
     }
 
