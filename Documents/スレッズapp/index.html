@@ -327,6 +327,58 @@
   .analysis-body { font-size: 13px; color: #bbb; line-height: 1.7; }
   .analysis-body strong { color: var(--text2); }
 
+  /* Buzz Finder */
+  .buzz-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .buzz-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 10px;
+  }
+  .buzz-text {
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 12px;
+  }
+  .buzz-analysis {
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #aaa;
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .buzz-analysis strong { color: var(--text2); }
+  .add-ref-btn {
+    padding: 6px 14px;
+    background: transparent;
+    border: 1px solid #1e4a2a;
+    border-radius: 6px;
+    color: #7ef7a0;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .add-ref-btn:hover { background: #1a3520; }
+  .add-ref-btn.added { opacity: 0.5; cursor: default; }
+  .buzz-link { font-size: 11px; color: var(--text3); text-decoration: none; }
+  .buzz-link:hover { color: var(--text2); }
+
   /* Ref list */
   .ref-badge {
     display: inline-block;
@@ -425,6 +477,7 @@
     <button class="tab-btn active" onclick="switchTab('generate')">投稿を生成</button>
     <button class="tab-btn" onclick="switchTab('analysis')">参考元の分析</button>
     <button class="tab-btn" onclick="switchTab('refs')">参考投稿一覧</button>
+    <button class="tab-btn" onclick="switchTab('buzz')">バズ投稿</button>
   </div>
 
   <!-- TAB 1: Generate -->
@@ -541,6 +594,20 @@
   <div id="tab-refs" class="tab-content">
     <div class="ref-list-container" id="refListArea"></div>
   </div>
+
+  <!-- TAB 4: Buzz Finder -->
+  <div id="tab-buzz" class="tab-content">
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">占い系バズ投稿を探す</span>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Threadsで伸びている占い・スピ系投稿を自動取得し、なぜ伸びているか分析します。気になった投稿は参考投稿に追加できます。</p>
+      <button class="generate-btn" onclick="fetchBuzzPosts()" id="fetchBtn">🔍 バズ投稿を取得する</button>
+    </div>
+    <div id="buzzArea">
+      <div class="status">ボタンを押して占い系バズ投稿を取得してください</div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -548,6 +615,7 @@
 const selections = { type: [], tone: [], theme: [] };
 let generateCount = 3;
 let lastGeneratedPosts = [];
+let buzzPosts = [];
 
 // ===== BUILT-IN SAMPLES (38本) =====
 const TYPE_LABEL = { ranking:'星座ランキング型', month:'生まれ月型', year:'生年型', simple:'シンプル断言型', kaiunbi:'開運日型' };
@@ -1207,8 +1275,9 @@ function loadUserRefs() {
 
 // ===== TABS =====
 function switchTab(name) {
+  const tabs = ['generate','analysis','refs','buzz'];
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['generate','analysis','refs'][i] === name);
+    b.classList.toggle('active', tabs[i] === name);
   });
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
@@ -1523,6 +1592,135 @@ function parseAnalyses(text) {
     results.push(match[1].trim());
   }
   return results;
+}
+
+// ===== BUZZ FINDER =====
+async function fetchBuzzPosts() {
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  document.getElementById('buzzArea').innerHTML = '<div class="loading"><div class="spinner"></div>バズ投稿を取得中...</div>';
+
+  try {
+    const res = await fetch('/api/trending');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+
+    if (!data.posts || data.posts.length === 0) {
+      document.getElementById('buzzArea').innerHTML = '<div class="status">投稿が見つかりませんでした</div>';
+      return;
+    }
+
+    buzzPosts = data.posts;
+    renderBuzzPosts(buzzPosts);
+
+    const apiKey = document.getElementById('apiKey').value.replace(/[^\x20-\x7E]/g,'').trim();
+    if (apiKey) {
+      analyzeBuzzPosts(buzzPosts, apiKey);
+    } else {
+      buzzPosts.forEach((_, i) => {
+        const el = document.getElementById('buzz-analysis-' + i);
+        if (el) el.innerHTML = '「投稿を生成」タブにAPIキーを入力すると自動分析されます';
+      });
+    }
+
+  } catch(e) {
+    document.getElementById('buzzArea').innerHTML = `<div class="status" style="color:#e55">エラー: ${escHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderBuzzPosts(posts) {
+  let html = `<div style="font-size:12px;color:var(--text3);margin:14px 0 16px;">${posts.length}件取得しました</div>`;
+  posts.forEach((p, i) => {
+    const text = p.text || '（本文なし）';
+    const time = p.timestamp ? new Date(p.timestamp).toLocaleDateString('ja-JP') : '';
+    const username = p.username ? `@${escHtml(p.username)}` : '';
+    const kw = p.keyword ? `<span class="tag tag-simple">${escHtml(p.keyword)}</span>` : '';
+    const likeStr = p.like_count != null ? `❤️ ${p.like_count}` : '';
+    const replyStr = p.replies_count != null ? `💬 ${p.replies_count}` : '';
+    html += `
+      <div class="buzz-card" id="buzz-card-${i}">
+        <div class="buzz-meta">
+          ${username ? `<span>${username}</span>` : ''}
+          ${time ? `<span>${time}</span>` : ''}
+          ${likeStr ? `<span>${likeStr}</span>` : ''}
+          ${replyStr ? `<span>${replyStr}</span>` : ''}
+          ${kw}
+        </div>
+        <div class="buzz-text">${escHtml(text)}</div>
+        <div class="buzz-analysis" id="buzz-analysis-${i}">分析中...</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="add-ref-btn" id="add-ref-btn-${i}" onclick="addBuzzToRef(${i})">＋ 参考投稿に追加</button>
+          ${p.permalink ? `<a class="buzz-link" href="${escHtml(p.permalink)}" target="_blank" rel="noopener">Threadsで見る →</a>` : ''}
+        </div>
+      </div>`;
+  });
+  document.getElementById('buzzArea').innerHTML = html;
+}
+
+async function analyzeBuzzPosts(posts, apiKey) {
+  const texts = posts.map((p, i) => `投稿${i+1}:\n${(p.text || '').substring(0, 300)}`).join('\n\n---\n\n');
+
+  const prompt = `以下はThreadsで伸びている占い・スピ系投稿です。それぞれについて「なぜバズっているか（なぜ伸びているか）」を1〜2文で簡潔に日本語で分析してください。認知拡大・エンゲージメント・心理的トリガー・投稿の型の観点から答えてください。
+
+${texts}
+
+出力形式（必ずこの形式で）：
+===分析1===
+（理由）
+===END===
+（以下同様）`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (!res.ok) throw new Error('分析API失敗');
+    const data = await res.json();
+    const analyses = parseAnalyses(data.content[0].text);
+
+    posts.forEach((_, i) => {
+      const el = document.getElementById('buzz-analysis-' + i);
+      if (el) el.innerHTML = `<strong>なぜ伸びているか：</strong><br>${escHtml(analyses[i] || '（分析データなし）')}`;
+    });
+  } catch(e) {
+    posts.forEach((_, i) => {
+      const el = document.getElementById('buzz-analysis-' + i);
+      if (el) el.textContent = '（分析に失敗しました）';
+    });
+  }
+}
+
+function addBuzzToRef(i) {
+  const text = buzzPosts[i] && buzzPosts[i].text;
+  if (!text) return;
+  const textarea = document.getElementById('userRefs');
+  const current = textarea.value.trim();
+  textarea.value = current ? current + '\n\n\n' + text : text;
+  saveUserRefs();
+  renderRefList();
+
+  const btn = document.getElementById('add-ref-btn-' + i);
+  if (btn) {
+    btn.textContent = '✓ 追加済み';
+    btn.classList.add('added');
+    btn.disabled = true;
+  }
 }
 
 // ===== INIT =====
