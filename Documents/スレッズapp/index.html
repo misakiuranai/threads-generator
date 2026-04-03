@@ -597,15 +597,51 @@
 
   <!-- TAB 4: Buzz Finder -->
   <div id="tab-buzz" class="tab-content">
+
     <div class="section">
       <div class="section-header">
-        <span class="section-label">占い系バズ投稿を探す</span>
+        <span class="section-label">監視アカウント</span>
+        <span class="section-hint">追加したアカウントから投稿を取得</span>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Threadsで伸びている占い・スピ系投稿を自動取得し、なぜ伸びているか分析します。気になった投稿は参考投稿に追加できます。</p>
-      <button class="generate-btn" onclick="fetchBuzzPosts()" id="fetchBtn">🔍 バズ投稿を取得する</button>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input type="text" id="accountInput" placeholder="@ユーザー名（例：uranai_hoshi）" style="flex:1;" onkeydown="if(event.key==='Enter')addAccount()" />
+        <button class="toggle-pw" onclick="addAccount()">追加</button>
+      </div>
+      <div id="accountList"><div style="font-size:12px;color:var(--text3);">まだアカウントが追加されていません</div></div>
     </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-label">期間</span>
+      </div>
+      <div class="chip-group" id="periodGroup">
+        <button class="chip" onclick="selectPeriod(this,'1d')">今日</button>
+        <button class="chip selected" onclick="selectPeriod(this,'7d')">1週間</button>
+        <button class="chip" onclick="selectPeriod(this,'1m')">1ヶ月</button>
+        <button class="chip" onclick="selectPeriod(this,'3m')">3ヶ月</button>
+        <button class="chip" onclick="selectPeriod(this,'6m')">半年</button>
+        <button class="chip" onclick="selectPeriod(this,'1y')">1年</button>
+        <button class="chip" onclick="selectPeriod(this,'custom')">カスタム📅</button>
+      </div>
+      <div id="customDateWrap" style="display:none;margin-top:12px;">
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;">
+          <div>
+            <div class="input-label">開始日</div>
+            <input type="date" id="dateFrom" style="width:155px;" />
+          </div>
+          <span style="color:var(--text3);padding-bottom:9px;">〜</span>
+          <div>
+            <div class="input-label">終了日</div>
+            <input type="date" id="dateTo" style="width:155px;" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="generate-btn" onclick="fetchBuzzPosts()" id="fetchBtn">🔍 バズ投稿を取得する</button>
+
     <div id="buzzArea">
-      <div class="status">ボタンを押して占い系バズ投稿を取得してください</div>
+      <div class="status">監視アカウントを追加して「取得する」を押してください</div>
     </div>
   </div>
 </div>
@@ -1595,23 +1631,83 @@ function parseAnalyses(text) {
 }
 
 // ===== BUZZ FINDER =====
+let buzzAccounts = [];
+let selectedPeriod = '7d';
+
+function loadBuzzAccounts() {
+  const stored = localStorage.getItem('buzz_accounts');
+  if (stored) buzzAccounts = JSON.parse(stored);
+  renderAccountList();
+}
+function saveBuzzAccounts() {
+  localStorage.setItem('buzz_accounts', JSON.stringify(buzzAccounts));
+}
+function addAccount() {
+  const input = document.getElementById('accountInput');
+  const username = input.value.trim().replace(/^@/, '');
+  if (!username) return;
+  if (buzzAccounts.find(a => a.username === username)) { alert('すでに追加されています'); return; }
+  buzzAccounts.push({ username });
+  saveBuzzAccounts();
+  renderAccountList();
+  input.value = '';
+}
+function removeAccount(username) {
+  buzzAccounts = buzzAccounts.filter(a => a.username !== username);
+  saveBuzzAccounts();
+  renderAccountList();
+}
+function renderAccountList() {
+  const el = document.getElementById('accountList');
+  if (!el) return;
+  if (buzzAccounts.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);">まだアカウントが追加されていません</div>';
+    return;
+  }
+  el.innerHTML = buzzAccounts.map(a => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;color:var(--text);">@${escHtml(a.username)}</span>
+      <button onclick="removeAccount('${escHtml(a.username)}')" style="background:none;border:none;color:#e55;cursor:pointer;font-size:12px;font-family:inherit;">削除</button>
+    </div>`).join('');
+}
+
+function selectPeriod(btn, period) {
+  selectedPeriod = period;
+  document.querySelectorAll('#periodGroup .chip').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('customDateWrap').style.display = period === 'custom' ? 'block' : 'none';
+}
+
+function getPeriodTimestamps() {
+  const now = Math.floor(Date.now() / 1000);
+  if (selectedPeriod === 'custom') {
+    const from = document.getElementById('dateFrom').value;
+    const to = document.getElementById('dateTo').value;
+    if (!from || !to) { alert('開始日と終了日を入力してください'); return null; }
+    return { since: Math.floor(new Date(from).getTime() / 1000), until: Math.floor(new Date(to + 'T23:59:59').getTime() / 1000) };
+  }
+  const map = { '1d': 86400, '7d': 604800, '1m': 2592000, '3m': 7776000, '6m': 15552000, '1y': 31536000 };
+  return { since: now - (map[selectedPeriod] || 604800), until: now };
+}
+
 async function fetchBuzzPosts() {
+  if (buzzAccounts.length === 0) { alert('監視するアカウントを追加してください'); return; }
+  const timestamps = getPeriodTimestamps();
+  if (!timestamps) return;
+
   const btn = document.getElementById('fetchBtn');
   btn.disabled = true;
   document.getElementById('buzzArea').innerHTML = '<div class="loading"><div class="spinner"></div>バズ投稿を取得中...</div>';
 
   try {
-    const res = await fetch('/api/trending');
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
+    const accountsParam = buzzAccounts.map(a => a.username).join(',');
+    const url = `/api/trending?accounts=${encodeURIComponent(accountsParam)}&since=${timestamps.since}&until=${timestamps.until}`;
+    const res = await fetch(url);
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
     const data = await res.json();
 
     if (!data.posts || data.posts.length === 0) {
-      const errMsg = data.errors && data.errors.length > 0
-        ? data.errors.join('<br>')
-        : 'Threadsから投稿を取得できませんでした。<br>アカウントに投稿がないか、APIの権限が不足している可能性があります。';
+      const errMsg = data.errors && data.errors.length > 0 ? data.errors.join('<br>') : '指定期間内に投稿が見つかりませんでした。';
       document.getElementById('buzzArea').innerHTML = `<div class="status" style="color:#e55;">投稿が見つかりませんでした<br><br><small style="color:#777;">${errMsg}</small></div>`;
       return;
     }
@@ -1620,14 +1716,8 @@ async function fetchBuzzPosts() {
     renderBuzzPosts(buzzPosts);
 
     const apiKey = document.getElementById('apiKey').value.replace(/[^\x20-\x7E]/g,'').trim();
-    if (apiKey) {
-      analyzeBuzzPosts(buzzPosts, apiKey);
-    } else {
-      buzzPosts.forEach((_, i) => {
-        const el = document.getElementById('buzz-analysis-' + i);
-        if (el) el.innerHTML = '「投稿を生成」タブにAPIキーを入力すると自動分析されます';
-      });
-    }
+    if (apiKey) { analyzeBuzzPosts(buzzPosts, apiKey); }
+    else { buzzPosts.forEach((_, i) => { const el = document.getElementById('buzz-analysis-' + i); if (el) el.innerHTML = '「投稿を生成」タブにAPIキーを入力すると自動分析されます'; }); }
 
   } catch(e) {
     document.getElementById('buzzArea').innerHTML = `<div class="status" style="color:#e55">エラー: ${escHtml(e.message)}</div>`;
@@ -1637,12 +1727,12 @@ async function fetchBuzzPosts() {
 }
 
 function renderBuzzPosts(posts) {
-  let html = `<div style="font-size:12px;color:var(--text3);margin:14px 0 16px;">${posts.length}件取得しました</div>`;
+  const periodLabel = { '1d':'今日', '7d':'1週間', '1m':'1ヶ月', '3m':'3ヶ月', '6m':'半年', '1y':'1年', 'custom':'カスタム' }[selectedPeriod] || '';
+  let html = `<div style="font-size:12px;color:var(--text3);margin:14px 0 16px;">${periodLabel}で${posts.length}件取得・いいね順</div>`;
   posts.forEach((p, i) => {
     const text = p.text || '（本文なし）';
     const time = p.timestamp ? new Date(p.timestamp).toLocaleDateString('ja-JP') : '';
     const username = p.username ? `@${escHtml(p.username)}` : '';
-    const kw = p.keyword ? `<span class="tag tag-simple">${escHtml(p.keyword)}</span>` : '';
     const likeStr = p.like_count != null ? `❤️ ${p.like_count}` : '';
     const replyStr = p.replies_count != null ? `💬 ${p.replies_count}` : '';
     html += `
@@ -1652,7 +1742,6 @@ function renderBuzzPosts(posts) {
           ${time ? `<span>${time}</span>` : ''}
           ${likeStr ? `<span>${likeStr}</span>` : ''}
           ${replyStr ? `<span>${replyStr}</span>` : ''}
-          ${kw}
         </div>
         <div class="buzz-text">${escHtml(text)}</div>
         <div class="buzz-analysis" id="buzz-analysis-${i}">分析中...</div>
@@ -1667,7 +1756,6 @@ function renderBuzzPosts(posts) {
 
 async function analyzeBuzzPosts(posts, apiKey) {
   const texts = posts.map((p, i) => `投稿${i+1}:\n${(p.text || '').substring(0, 300)}`).join('\n\n---\n\n');
-
   const prompt = `以下はThreadsで伸びている占い・スピ系投稿です。それぞれについて「なぜバズっているか（なぜ伸びているか）」を1〜2文で簡潔に日本語で分析してください。認知拡大・エンゲージメント・心理的トリガー・投稿の型の観点から答えてください。
 
 ${texts}
@@ -1681,31 +1769,18 @@ ${texts}
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content: prompt }]
-      })
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 2048, messages: [{ role: 'user', content: prompt }] })
     });
     if (!res.ok) throw new Error('分析API失敗');
     const data = await res.json();
     const analyses = parseAnalyses(data.content[0].text);
-
     posts.forEach((_, i) => {
       const el = document.getElementById('buzz-analysis-' + i);
       if (el) el.innerHTML = `<strong>なぜ伸びているか：</strong><br>${escHtml(analyses[i] || '（分析データなし）')}`;
     });
   } catch(e) {
-    posts.forEach((_, i) => {
-      const el = document.getElementById('buzz-analysis-' + i);
-      if (el) el.textContent = '（分析に失敗しました）';
-    });
+    posts.forEach((_, i) => { const el = document.getElementById('buzz-analysis-' + i); if (el) el.textContent = '（分析に失敗しました）'; });
   }
 }
 
@@ -1717,13 +1792,8 @@ function addBuzzToRef(i) {
   textarea.value = current ? current + '\n\n\n' + text : text;
   saveUserRefs();
   renderRefList();
-
   const btn = document.getElementById('add-ref-btn-' + i);
-  if (btn) {
-    btn.textContent = '✓ 追加済み';
-    btn.classList.add('added');
-    btn.disabled = true;
-  }
+  if (btn) { btn.textContent = '✓ 追加済み'; btn.classList.add('added'); btn.disabled = true; }
 }
 
 // ===== INIT =====
@@ -1731,6 +1801,7 @@ window.onload = function() {
   loadApiKey();
   loadUserRefs();
   renderRefList();
+  loadBuzzAccounts();
 };
 </script>
 </body>
