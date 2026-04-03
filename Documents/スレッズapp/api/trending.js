@@ -16,28 +16,29 @@ export default async function handler(req, res) {
   for (const account of accountList) {
     let userId = null;
 
-    // ユーザーIDが数字で直接渡された場合はそのまま使う
+    // 数字ならそのままユーザーIDとして使う
     if (/^\d+$/.test(account)) {
       userId = account;
     } else {
-      // ユーザー名からIDを検索
+      // 方法1: @username 形式で直接アクセス
       try {
-        const searchUrl = `https://graph.threads.net/v1.0/search?q=${encodeURIComponent(account)}&type=USERS&fields=id,username&access_token=${token}`;
-        const sr = await fetch(searchUrl);
-        const sd = await sr.json();
-        if (sd.data && sd.data.length > 0) {
-          const match = sd.data.find(u => u.username === account) || sd.data[0];
-          if (match) userId = match.id;
-        } else if (sd.error) {
-          errors.push(`@${account} の検索エラー: ${sd.error.message}`);
-        }
-      } catch (e) {
-        errors.push(`@${account} の検索に失敗: ${e.message}`);
+        const r1 = await fetch(`https://graph.threads.net/v1.0/@${account}?fields=id,username&access_token=${token}`);
+        const d1 = await r1.json();
+        if (d1.id) { userId = d1.id; }
+      } catch (_) {}
+
+      // 方法2: username をそのまま ID として試す
+      if (!userId) {
+        try {
+          const r2 = await fetch(`https://graph.threads.net/v1.0/${account}?fields=id,username&access_token=${token}`);
+          const d2 = await r2.json();
+          if (d2.id) { userId = d2.id; }
+        } catch (_) {}
       }
     }
 
     if (!userId) {
-      errors.push(`@${account} のユーザーIDが見つかりませんでした`);
+      errors.push(`@${account}: ユーザーIDが取得できませんでした。数字のIDを直接入力してください`);
       continue;
     }
 
@@ -53,6 +54,8 @@ export default async function handler(req, res) {
         allPosts.push(...d.data.map(p => ({ ...p, username: p.username || account })));
       } else if (d.error) {
         errors.push(`@${account}: ${d.error.message}`);
+      } else {
+        errors.push(`@${account}: 指定期間内に投稿が見つかりませんでした`);
       }
     } catch (e) {
       errors.push(`@${account}: ${e.message}`);
