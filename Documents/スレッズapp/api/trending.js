@@ -1,3 +1,15 @@
+// ThreadsのショートコードからIDに変換（Instagram/Threads共通フォーマット）
+function shortcodeToId(shortcode) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  let id = BigInt(0);
+  for (const char of shortcode) {
+    const idx = alphabet.indexOf(char);
+    if (idx === -1) continue;
+    id = id * BigInt(64) + BigInt(idx);
+  }
+  return id.toString();
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -9,36 +21,54 @@ export default async function handler(req, res) {
   const { accounts, since, until } = req.query;
   if (!accounts) return res.status(400).json({ error: 'accounts パラメータが必要です' });
 
-  const accountList = accounts.split(',').map(a => a.trim()).filter(Boolean);
+  // accounts形式: "username" または "username:shortcode"
+  const accountList = accounts.split(',').map(a => {
+    const [username, shortcode] = a.trim().split(':');
+    return { username, shortcode };
+  }).filter(a => a.username);
+
   const allPosts = [];
   const errors = [];
 
   for (const account of accountList) {
+    const { username, shortcode } = account;
     let userId = null;
 
-    // 数字ならそのままユーザーIDとして使う
-    if (/^\d+$/.test(account)) {
-      userId = account;
-    } else {
-      // 方法1: @username 形式で直接アクセス
-      try {
-        const r1 = await fetch(`https://graph.threads.net/v1.0/@${account}?fields=id,username&access_token=${token}`);
-        const d1 = await r1.json();
-        if (d1.id) { userId = d1.id; }
-      } catch (_) {}
+    // 1. 数字ならそのままユーザーIDとして使う
+    if (/^\d+$/.test(username)) {
+      userId = username;
+    }
 
-      // 方法2: username をそのまま ID として試す
-      if (!userId) {
-        try {
-          const r2 = await fetch(`https://graph.threads.net/v1.0/${account}?fields=id,username&access_token=${token}`);
-          const d2 = await r2.json();
-          if (d2.id) { userId = d2.id; }
-        } catch (_) {}
-      }
+    // 2. 投稿URLのショートコードからユーザーIDを取得
+    if (!userId && shortcode) {
+      try {
+        const postId = shortcodeToId(shortcode);
+        const r = await fetch(`https://graph.threads.net/v1.0/${postId}?fields=id,owner&access_token=${token}`);
+        const d = await r.json();
+        if (d.owner && d.owner.id) userId = d.owner.id;
+      } catch (_) {}
+    }
+
+    // 3. @username 形式で直接アクセス
+    if (!userId) {
+      try {
+        const r = await fetch(`https://graph.threads.net/v1.0/@${username}?fields=id&access_token=${token}`);
+        const d = await r.json();
+        if (d.id) userId = d.id;
+      } catch (_) {}
+    }
+
+    // 4. username をそのまま試す
+    if (!userId) {
+      try {
+        const r = await fetch(`https://graph.threads.net/v1.0/${username}?fields=id&access_token=${token}`);
+        const d = await r.json();
+        if (d.id) userId = d.id;
+      } catch (_) {}
     }
 
     if (!userId) {
-      errors.push(`@${account}: ユーザーIDが取得できませんでした。数字のIDを直接入力してください`);
+      errors.push(`@${username}: ユーザーIDの取得に失敗しました`);
       continue;
     }
 
@@ -51,14 +81,14 @@ export default async function handler(req, res) {
       const r = await fetch(url);
       const d = await r.json();
       if (d.data && d.data.length > 0) {
-        allPosts.push(...d.data.map(p => ({ ...p, username: p.username || account })));
+        allPosts.push(...d.data.map(p => ({ ...p, username: p.username || username })));
       } else if (d.error) {
-        errors.push(`@${account}: ${d.error.message}`);
+        errors.push(`@${username}: ${d.error.message}`);
       } else {
-        errors.push(`@${account}: 指定期間内に投稿が見つかりませんでした`);
+        errors.push(`@${username}: 指定期間内に投稿が見つかりませんでした`);
       }
     } catch (e) {
-      errors.push(`@${account}: ${e.message}`);
+      errors.push(`@${username}: ${e.message}`);
     }
   }
 

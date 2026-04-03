@@ -604,9 +604,10 @@
         <span class="section-hint">追加したアカウントから投稿を取得</span>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <input type="text" id="accountInput" placeholder="@ユーザー名（例：uranai_hoshi）" style="flex:1;" onkeydown="if(event.key==='Enter')addAccount()" />
+        <input type="text" id="accountInput" placeholder="URLまたは@ユーザー名を入力" style="flex:1;" onkeydown="if(event.key==='Enter')addAccount()" />
         <button class="toggle-pw" onclick="addAccount()">追加</button>
       </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">例: https://www.threads.net/@seirei_aki／投稿URL／ユーザー名</div>
       <div id="accountList"><div style="font-size:12px;color:var(--text3);">まだアカウントが追加されていません</div></div>
     </div>
 
@@ -1642,12 +1643,27 @@ function loadBuzzAccounts() {
 function saveBuzzAccounts() {
   localStorage.setItem('buzz_accounts', JSON.stringify(buzzAccounts));
 }
+
+function parseThreadsInput(raw) {
+  const s = raw.trim();
+  // 投稿URL: https://www.threads.net/@username/post/SHORTCODE
+  const postMatch = s.match(/threads\.net\/@([^/\s]+)\/post\/([A-Za-z0-9_-]+)/);
+  if (postMatch) return { username: postMatch[1], shortcode: postMatch[2] };
+  // プロフィールURL: https://www.threads.net/@username
+  const profileMatch = s.match(/threads\.net\/@([^/?\s]+)/);
+  if (profileMatch) return { username: profileMatch[1] };
+  // @username または username または数字ID
+  return { username: s.replace(/^@/, '') };
+}
+
 function addAccount() {
   const input = document.getElementById('accountInput');
-  const username = input.value.trim().replace(/^@/, '');
-  if (!username) return;
-  if (buzzAccounts.find(a => a.username === username)) { alert('すでに追加されています'); return; }
-  buzzAccounts.push({ username });
+  const raw = input.value.trim();
+  if (!raw) return;
+  const parsed = parseThreadsInput(raw);
+  if (!parsed.username) { alert('URLまたはユーザー名を入力してください'); return; }
+  if (buzzAccounts.find(a => a.username === parsed.username)) { alert('すでに追加されています'); return; }
+  buzzAccounts.push(parsed);
   saveBuzzAccounts();
   renderAccountList();
   input.value = '';
@@ -1666,7 +1682,10 @@ function renderAccountList() {
   }
   el.innerHTML = buzzAccounts.map(a => `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-      <span style="font-size:13px;color:var(--text);">@${escHtml(a.username)}</span>
+      <div>
+        <span style="font-size:13px;color:var(--text);">@${escHtml(a.username)}</span>
+        ${a.shortcode ? `<span style="font-size:10px;color:var(--text3);margin-left:6px;">投稿URLから追加</span>` : ''}
+      </div>
       <button onclick="removeAccount('${escHtml(a.username)}')" style="background:none;border:none;color:#e55;cursor:pointer;font-size:12px;font-family:inherit;">削除</button>
     </div>`).join('');
 }
@@ -1700,7 +1719,7 @@ async function fetchBuzzPosts() {
   document.getElementById('buzzArea').innerHTML = '<div class="loading"><div class="spinner"></div>バズ投稿を取得中...</div>';
 
   try {
-    const accountsParam = buzzAccounts.map(a => a.username).join(',');
+    const accountsParam = buzzAccounts.map(a => a.shortcode ? `${a.username}:${a.shortcode}` : a.username).join(',');
     const url = `/api/trending?accounts=${encodeURIComponent(accountsParam)}&since=${timestamps.since}&until=${timestamps.until}`;
     const res = await fetch(url);
     if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
