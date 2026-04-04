@@ -1619,7 +1619,6 @@ async function analyzeBuzzText() {
   btn.disabled = true; btn.textContent = '分析中...';
 
   const i = buzzPosts.length;
-  const url = document.getElementById('buzzUrlInput').value.trim();
   buzzPosts.push({ text, permalink: url });
 
   // カードを追加
