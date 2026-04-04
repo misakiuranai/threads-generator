@@ -1620,21 +1620,24 @@ async function analyzeBuzzText() {
   const btn = document.getElementById('analyzeBuzzBtn');
   btn.disabled = true; btn.textContent = '取得中...';
 
-  // URLがあれば自動でテキストを取得
+  // URLがあれば自動でテキストを取得（5秒でタイムアウト）
   if (url && !text) {
     try {
-      const r = await fetch(`/api/oembed?url=${encodeURIComponent(url)}`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const r = await fetch(`/api/oembed?url=${encodeURIComponent(url)}`, { signal: controller.signal });
+      clearTimeout(timer);
       const data = await r.json();
       if (data.text && data.text.length > 5) {
         text = data.text;
       } else {
         btn.disabled = false; btn.textContent = '🔍 分析する';
-        alert('URLからテキストを取得できませんでした。テキストを直接貼り付けてください。');
+        alert('URLからテキストを取得できませんでした。下の「テキストを直接入力」から貼り付けてください。');
         return;
       }
     } catch(e) {
       btn.disabled = false; btn.textContent = '🔍 分析する';
-      alert('URLからの取得に失敗しました。テキストを直接貼り付けてください。');
+      alert('URLからの取得がタイムアウトしました。下の「テキストを直接入力」から貼り付けてください。');
       return;
     }
   }
