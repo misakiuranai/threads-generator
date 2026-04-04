@@ -1,13 +1,46 @@
-// ThreadsのショートコードからIDに変換（Instagram/Threads共通フォーマット）
-function shortcodeToId(shortcode) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  let id = BigInt(0);
-  for (const char of shortcode) {
-    const idx = alphabet.indexOf(char);
-    if (idx === -1) continue;
-    id = id * BigInt(64) + BigInt(idx);
+function extractTag(xml, tag) {
+  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
+  return m ? m[1].trim() : '';
+}
+
+function cleanHtml(html) {
+  return html
+    .replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '')
+    .replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
+function parseRSS(xml, username, since, until) {
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const item = match[1];
+    const title = cleanHtml(extractTag(item, 'title'));
+    const desc = cleanHtml(extractTag(item, 'description'));
+    const pubDate = extractTag(item, 'pubDate');
+    const link = extractTag(item, 'link');
+    const text = desc.length > title.length ? desc : title;
+    if (!text || text.length < 5) continue;
+
+    const ts = pubDate ? Math.floor(new Date(pubDate).getTime() / 1000) : 0;
+    if (since && ts < parseInt(since)) continue;
+    if (until && ts > parseInt(until)) continue;
+
+    items.push({
+      id: link || `${username}-${ts}`,
+      text,
+      timestamp: pubDate ? new Date(pubDate).toISOString() : '',
+      permalink: link || '',
+      username,
+      like_count: null,
+      replies_count: null,
+      source: 'rss'
+    });
   }
-  return id.toString();
+  return items;
 }
 
 export default async function handler(req, res) {
@@ -15,89 +48,54 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
-  const token = process.env.THREADS_TOKEN;
-  if (!token) return res.status(500).json({ error: 'THREADS_TOKEN が設定されていません' });
-
   const { accounts, since, until } = req.query;
   if (!accounts) return res.status(400).json({ error: 'accounts パラメータが必要です' });
 
-  // accounts形式: "username" または "username:shortcode"
   const accountList = accounts.split(',').map(a => {
-    const [username, shortcode] = a.trim().split(':');
-    return { username, shortcode };
-  }).filter(a => a.username);
+    const username = a.trim().split(':')[0].replace(/^@/, '');
+    return username;
+  }).filter(Boolean);
 
   const allPosts = [];
   const errors = [];
 
-  for (const account of accountList) {
-    const { username, shortcode } = account;
-    let userId = null;
+  for (const username of accountList) {
+    let fetched = false;
 
-    // 1. 数字ならそのままユーザーIDとして使う
-    if (/^\d+$/.test(username)) {
-      userId = username;
-    }
+    // RSSHub経由でThreads公開投稿を取得
+    const rssHosts = [
+      `https://rsshub.app/threads/user/${username}`,
+      `https://rss.shab.fun/threads/user/${username}`
+    ];
 
-    // 2. 投稿URLのショートコードからユーザーIDを取得
-    if (!userId && shortcode) {
+    for (const rssUrl of rssHosts) {
       try {
-        const postId = shortcodeToId(shortcode);
-        const r = await fetch(`https://graph.threads.net/v1.0/${postId}?fields=id,owner&access_token=${token}`);
-        const d = await r.json();
-        if (d.owner && d.owner.id) userId = d.owner.id;
+        const r = await fetch(rssUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ThreadsGenerator/1.0)' },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (!r.ok) continue;
+        const xml = await r.text();
+        if (!xml.includes('<item>')) continue;
+        const items = parseRSS(xml, username, since, until);
+        if (items.length > 0) {
+          allPosts.push(...items);
+          fetched = true;
+          break;
+        }
       } catch (_) {}
     }
 
-    // 3. @username 形式で直接アクセス
-    if (!userId) {
-      try {
-        const r = await fetch(`https://graph.threads.net/v1.0/@${username}?fields=id&access_token=${token}`);
-        const d = await r.json();
-        if (d.id) userId = d.id;
-      } catch (_) {}
-    }
-
-    // 4. username をそのまま試す
-    if (!userId) {
-      try {
-        const r = await fetch(`https://graph.threads.net/v1.0/${username}?fields=id&access_token=${token}`);
-        const d = await r.json();
-        if (d.id) userId = d.id;
-      } catch (_) {}
-    }
-
-    if (!userId) {
-      errors.push(`@${username}: ユーザーIDの取得に失敗しました`);
-      continue;
-    }
-
-    // 投稿を取得（期間フィルター付き）
-    try {
-      let url = `https://graph.threads.net/v1.0/${userId}/threads?fields=id,text,timestamp,permalink,like_count,replies_count,username&limit=50&access_token=${token}`;
-      if (since) url += `&since=${since}`;
-      if (until) url += `&until=${until}`;
-
-      const r = await fetch(url);
-      const d = await r.json();
-      if (d.data && d.data.length > 0) {
-        allPosts.push(...d.data.map(p => ({ ...p, username: p.username || username })));
-      } else if (d.error) {
-        errors.push(`@${username}: ${d.error.message}`);
-      } else {
-        errors.push(`@${username}: 指定期間内に投稿が見つかりませんでした`);
-      }
-    } catch (e) {
-      errors.push(`@${username}: ${e.message}`);
+    if (!fetched) {
+      errors.push(`@${username}: 投稿の取得に失敗しました（非公開アカウントか取得できない場合があります）`);
     }
   }
 
-  // いいね順にソート
+  // 新着順でソート（いいね数がない場合）
   const sorted = allPosts
-    .filter(p => p.text && p.text.length > 0)
-    .sort((a, b) => (b.like_count || 0) - (a.like_count || 0))
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     .slice(0, 30);
 
-  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+  res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=1200');
   res.status(200).json({ posts: sorted, total: sorted.length, errors });
 }
