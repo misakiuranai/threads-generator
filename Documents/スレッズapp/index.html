@@ -2317,7 +2317,8 @@ ${userRefs ? `\n【ユーザー追加の参考投稿（最優先で参考にす�
     }
 
     const data = await res.json();
-    const text = data.content[0].text;
+    const text = data.content?.[0]?.text;
+    if (!text) throw new Error('APIレスポンスが不正です: ' + JSON.stringify(data).slice(0, 200));
     const posts = parseGeneratedPosts(text);
     lastGeneratedPosts = posts;
 
