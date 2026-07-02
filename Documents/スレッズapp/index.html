@@ -2733,10 +2733,10 @@ function renderResults(posts) {
         const idx = parseInt(r.replace('参考', '')) - 1;
         const x = lastUsedSamples[idx];
         if (!x) return null;
-        const preview = x.s.replace(/⭐️/g, '').trim().slice(0, 60);
+        const preview = x.s.replace(/⭐️/g, '').trim();
         return `<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;">
           <div style="margin-bottom:4px;">${makeTypeTags(x.m)}</div>
-          <div style="font-size:11px;color:var(--text2);line-height:1.6;">${escHtml(preview)}…</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.6;white-space:pre-wrap;">${escHtml(preview)}</div>
         </div>`;
       }).filter(Boolean);
       if (refCards.length) {
