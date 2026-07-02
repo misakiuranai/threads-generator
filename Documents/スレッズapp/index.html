@@ -2681,19 +2681,25 @@ function renderResults(posts) {
   posts.forEach((p, i) => {
     const charCount = p.replace(/\s/g, '').length;
     const refStr = lastPostRefs[i] || '';
-    // REF番号からサンプル情報を取得して表示
+    // REF番号から参照サンプルのプレビューを生成
     let refHtml = '';
     if (refStr) {
       const refNums = refStr.split(',').map(r => r.trim());
-      const refItems = refNums.map(r => {
+      const refCards = refNums.map(r => {
         const idx = parseInt(r.replace('参考', '')) - 1;
-        const s = lastUsedSamples[idx];
-        if (!s) return null;
-        return `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);">${r}: ${TYPE_LABEL[s.m.type]}・${TONE_LABEL[s.m.tone]}</span>`;
+        const x = lastUsedSamples[idx];
+        if (!x) return null;
+        const preview = x.s.replace(/⭐️/g, '').trim().slice(0, 60);
+        return `<div style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;">
+          <div style="margin-bottom:4px;">${makeTypeTags(x.m)}</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.6;">${escHtml(preview)}…</div>
+        </div>`;
       }).filter(Boolean);
-      if (refItems.length) {
-        refHtml = `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <span style="font-size:10px;color:var(--text3);line-height:2;">参照: </span>${refItems.join('')}</div>`;
+      if (refCards.length) {
+        refHtml = `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">参照したサンプル</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">${refCards.join('')}</div>
+        </div>`;
       }
     }
     html += `
