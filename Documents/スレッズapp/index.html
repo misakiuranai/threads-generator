@@ -2514,19 +2514,22 @@ async function generate() {
   const kaiunbiInfo = (types.includes('kaiunbi') && kaiunbiVal)
     ? `\n開運日情報：${kaiunbiVal}` : '';
 
-  // 選択した型に合うサンプルを優先的に抽出（最大6本）、足りなければ他から補完
+  // 選択した型に合うサンプルをシャッフルしてランダム抽出（最大8本）
   const typeOrder2 = ['ranking','month','year','simple','kaiunbi','muryokantei','chobun','tree_kantei'];
   const selectedTypes = types.length > 0 ? types : typeOrder2;
   let matchedSamples = builtinSamples
-    .map((s, i) => ({ s, m: builtinMeta[i] }))
-    .filter(x => x.m && selectedTypes.includes(x.m.type));
+    .map((s, i) => ({ s, i, m: builtinMeta[i] }))
+    .filter(x => x.m && selectedTypes.includes(x.m.type))
+    .sort(() => Math.random() - 0.5);
   if (matchedSamples.length < 4) {
-    const others = builtinSamples.map((s,i)=>({s,m:builtinMeta[i]})).filter(x => !matchedSamples.includes(x));
+    const others = builtinSamples.map((s,i)=>({s,i,m:builtinMeta[i]}))
+      .filter(x => !matchedSamples.find(m => m.i === x.i))
+      .sort(() => Math.random() - 0.5);
     matchedSamples = [...matchedSamples, ...others.slice(0, 6 - matchedSamples.length)];
   }
   lastUsedSamples = matchedSamples.slice(0, 8);
   const samplesForPrompt = lastUsedSamples
-    .map(x => `[型:${TYPE_LABEL[x.m.type]}][テーマ:${THEME_LABEL[x.m.theme]}][トーン:${TONE_LABEL[x.m.tone]}]\n${x.s}`)
+    .map((x, idx) => `[参考${idx+1}][型:${TYPE_LABEL[x.m.type]}][テーマ:${THEME_LABEL[x.m.theme]}][トーン:${TONE_LABEL[x.m.tone]}]\n${x.s}`)
     .join('\n\n---\n\n');
 
   const prompt = `あなたはThreads（スレッズ）の認知拡大系・開運系投稿のプロです。
@@ -2570,13 +2573,15 @@ ${samplesForPrompt}
 ${userRefs ? `\n【ユーザー追加の参考投稿（最優先で参考にすること）】\n${userRefs}` : ''}
 
 【出力形式】
-各投稿を以下の形式で出力してください：
+各投稿を以下の形式で出力してください。REF行には上記「参考投稿」の番号（参考1〜参考8）のうち最も参考にしたものを1〜3個カンマ区切りで記載してください：
 
 ===投稿1===
+REF:参考2,参考5
 （投稿本文）
 ===END===
 
 ===投稿2===
+REF:参考1
 （投稿本文）
 ===END===
 
@@ -2629,17 +2634,28 @@ ${userRefs ? `\n【ユーザー追加の参考投稿（最優先で参考にす�
   }
 }
 
+let lastPostRefs = [];
+
 function parseGeneratedPosts(text) {
   const posts = [];
+  lastPostRefs = [];
   const regex = /===投稿\d+===\s*([\s\S]*?)===END===/g;
   let match;
   while ((match = regex.exec(text)) !== null) {
-    const p = match[1].trim();
-    if (p) posts.push(p);
+    let block = match[1].trim();
+    // REF行を抽出
+    const refMatch = block.match(/^REF:([^\n]+)\n?/);
+    if (refMatch) {
+      lastPostRefs.push(refMatch[1].trim());
+      block = block.replace(/^REF:[^\n]+\n?/, '').trim();
+    } else {
+      lastPostRefs.push('');
+    }
+    if (block) posts.push(block);
   }
   if (posts.length === 0) {
-    // fallback: split by double newlines
     const parts = text.split(/\n{3,}/).map(s => s.trim()).filter(s => s.length > 20);
+    lastPostRefs = parts.map(() => '');
     return parts;
   }
   return posts;
@@ -2664,6 +2680,22 @@ function renderResults(posts) {
   let html = '';
   posts.forEach((p, i) => {
     const charCount = p.replace(/\s/g, '').length;
+    const refStr = lastPostRefs[i] || '';
+    // REF番号からサンプル情報を取得して表示
+    let refHtml = '';
+    if (refStr) {
+      const refNums = refStr.split(',').map(r => r.trim());
+      const refItems = refNums.map(r => {
+        const idx = parseInt(r.replace('参考', '')) - 1;
+        const s = lastUsedSamples[idx];
+        if (!s) return null;
+        return `<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);">${r}: ${TYPE_LABEL[s.m.type]}・${TONE_LABEL[s.m.tone]}</span>`;
+      }).filter(Boolean);
+      if (refItems.length) {
+        refHtml = `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <span style="font-size:10px;color:var(--text3);line-height:2;">参照: </span>${refItems.join('')}</div>`;
+      }
+    }
     html += `
       <div class="result-card">
         <div class="result-card-header">
@@ -2675,6 +2707,7 @@ function renderResults(posts) {
           </div>
         </div>
         <div class="result-text" id="post-${i}">${escHtml(p)}</div>
+        ${refHtml}
       </div>`;
   });
   document.getElementById('resultArea').innerHTML = html;
