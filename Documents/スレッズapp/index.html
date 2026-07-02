@@ -2552,10 +2552,20 @@ async function generate() {
   // 選択した型に合うサンプルをシャッフルしてランダム抽出（最大8本）
   const typeOrder2 = ['ranking','month','year','simple','kaiunbi','muryokantei','chobun','tree_kantei'];
   const selectedTypes = types.length > 0 ? types : typeOrder2;
-  let matchedSamples = builtinSamples
+  const isKinba = tones.includes('kinba');
+  const allByType = builtinSamples
     .map((s, i) => ({ s, i, m: builtinMeta[i] }))
     .filter(x => x.m && selectedTypes.includes(x.m.type))
     .sort(() => Math.random() - 0.5);
+  let matchedSamples;
+  if (isKinba) {
+    // きん婆選択時：きん婆・関西弁以外のサンプルを優先（最大6本）、残りを他から補充
+    const nonKinba = allByType.filter(x => x.m.tone !== 'kinba' && x.m.tone !== 'kansai');
+    const kinba = allByType.filter(x => x.m.tone === 'kinba' || x.m.tone === 'kansai');
+    matchedSamples = [...nonKinba.slice(0, 6), ...kinba.slice(0, 2)];
+  } else {
+    matchedSamples = allByType;
+  }
   if (matchedSamples.length < 4) {
     const others = builtinSamples.map((s,i)=>({s,i,m:builtinMeta[i]}))
       .filter(x => !matchedSamples.find(m => m.i === x.i))
@@ -2577,6 +2587,7 @@ async function generate() {
 - 生成本数：${generateCount}本
 
 【絶対ルール】
+0. トーンが「きん婆口調」の場合、参考投稿が標準語・関西弁など他のトーンであっても、きん婆口調（関西のおばあちゃんが話すような親しみやすい方言・語尾）に変換してオマージュすること。口調だけ変えて内容・構成・テンポは参考にする
 1. ハッシュタグは一切つけない
 2. 参考投稿の文字数感・テンポ・長さを最大限参考にすること。参考投稿が短ければ簡潔に、長ければそれに合わせること
 2b. 冒頭の1行目と2行目が同じ意味・同じ内容にならないこと。同義の文が連続する場合は1文に統合すること
