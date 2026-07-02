@@ -6,16 +6,17 @@
 <title>Threads 認知系ジェネレーター</title>
 <style>
   :root {
-    --bg: #080808;
-    --surface: #111;
-    --surface2: #181818;
-    --border: #222;
-    --border2: #2e2e2e;
-    --text: #f0f0f0;
-    --text2: #999;
-    --text3: #555;
-    --accent: #fff;
-    --accent-bg: #1a1a1a;
+    --bg: #0a0800;
+    --surface: #130f02;
+    --surface2: #1a1500;
+    --border: #2a2200;
+    --border2: #3a2e00;
+    --text: #f5e8c0;
+    --text2: #b89a50;
+    --text3: #6b5520;
+    --accent: #c9a84c;
+    --accent-bg: #1a1400;
+    --accent-glow: #c9a84c22;
     --radius: 14px;
     --radius-sm: 8px;
   }
@@ -37,6 +38,13 @@
   .app-header {
     text-align: center;
     margin-bottom: 28px;
+  }
+  .header-symbol {
+    font-size: 20px;
+    color: var(--accent);
+    letter-spacing: 0.3em;
+    margin-bottom: 8px;
+    opacity: 0.7;
   }
   .app-header h1 {
     font-size: 18px;
@@ -128,7 +136,7 @@
   .chip.selected {
     border-color: var(--accent);
     background: var(--accent);
-    color: #000;
+    color: #0a0800;
     font-weight: 700;
   }
 
@@ -214,14 +222,14 @@
     transition: all 0.14s;
   }
   .count-btn:hover:not(.selected) { border-color: #555; color: var(--text); }
-  .count-btn.selected { border-color: var(--accent); background: var(--accent); color: #000; }
+  .count-btn.selected { border-color: var(--accent); background: var(--accent); color: #0a0800; }
 
   /* Generate button */
   .generate-btn {
     width: 100%;
     padding: 15px;
     background: var(--accent);
-    color: #000;
+    color: #0a0800;
     border: none;
     border-radius: var(--radius);
     font-size: 15px;
@@ -282,23 +290,23 @@
     transition: all 0.14s;
     white-space: nowrap;
   }
-  .copy-btn:hover { background: var(--accent); color: #000; border-color: var(--accent); }
-  .copy-btn.copied { background: #1a3520; color: #7ef7a0; border-color: #1e4a2a; }
+  .copy-btn:hover { background: var(--accent); color: #0a0800; border-color: var(--accent); }
+  .copy-btn.copied { background: #1a1500; color: #c9a84c; border-color: #3a2e00; }
   .analysis-link-btn {
     padding: 5px 13px;
     background: transparent;
-    border: 1px solid #2a4a6a;
+    border: 1px solid #3a2e00;
     border-radius: 6px;
-    color: #7eb8f7;
+    color: #c9a84c;
     font-size: 12px;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .analysis-link-btn:hover { background: #1e3a6e; border-color: #7eb8f7; }
+  .analysis-link-btn:hover { background: #1a1500; border-color: #c9a84c; }
   .analysis-card.highlight {
-    border-color: #7eb8f7;
-    box-shadow: 0 0 0 2px rgba(126,184,247,0.2);
+    border-color: #c9a84c;
+    box-shadow: 0 0 0 2px rgba(201,168,76,0.2);
     transition: all 0.3s;
   }
 
@@ -365,16 +373,16 @@
   .add-ref-btn {
     padding: 6px 14px;
     background: transparent;
-    border: 1px solid #1e4a2a;
+    border: 1px solid #3a2e00;
     border-radius: 6px;
-    color: #7ef7a0;
+    color: #c9a84c;
     font-size: 12px;
     font-family: inherit;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .add-ref-btn:hover { background: #1a3520; }
+  .add-ref-btn:hover { background: #1a1500; }
   .add-ref-btn.added { opacity: 0.5; cursor: default; }
   .buzz-link { font-size: 11px; color: var(--text3); text-decoration: none; }
   .buzz-link:hover { color: var(--text2); }
@@ -389,8 +397,8 @@
     margin-right: 6px;
     margin-bottom: 7px;
   }
-  .badge-builtin { background: #1e3a5f; color: #7eb8f7; }
-  .badge-user { background: #1e4a2a; color: #7ee89a; }
+  .badge-builtin { background: #2a2000; color: #c9a84c; }
+  .badge-user { background: #1e1800; color: #e0c070; }
 
   .tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-right: 4px; margin-bottom: 4px; }
   .tag-ranking { background: #1e3a6e; color: #7eb8f7; }
@@ -473,6 +481,7 @@
 <div class="container">
 
   <div class="app-header">
+    <div class="header-symbol">☽ ✦ ✧ ☾</div>
     <h1>Threads 認知系ジェネレーター</h1>
     <p>参考投稿をもとに、バズる認知系投稿を自動生成</p>
   </div>
