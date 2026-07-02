@@ -607,6 +607,7 @@
     <button class="generate-btn" id="generateBtn" onclick="generate()">投稿を生成する</button>
 
     <div class="result-area" id="resultArea"></div>
+    <div id="usedSamplesArea"></div>
   </div>
 
   <!-- TAB 2: Analysis -->
@@ -656,6 +657,7 @@
 const selections = { type: [], tone: [], theme: [] };
 let generateCount = 3;
 let lastGeneratedPosts = [];
+let lastUsedSamples = [];
 let buzzPosts = [];
 
 // ===== BUILT-IN SAMPLES (38本) =====
@@ -2522,7 +2524,8 @@ async function generate() {
     const others = builtinSamples.map((s,i)=>({s,m:builtinMeta[i]})).filter(x => !matchedSamples.includes(x));
     matchedSamples = [...matchedSamples, ...others.slice(0, 6 - matchedSamples.length)];
   }
-  const samplesForPrompt = matchedSamples.slice(0, 8)
+  lastUsedSamples = matchedSamples.slice(0, 8);
+  const samplesForPrompt = lastUsedSamples
     .map(x => `[型:${TYPE_LABEL[x.m.type]}][テーマ:${THEME_LABEL[x.m.theme]}][トーン:${TONE_LABEL[x.m.tone]}]\n${x.s}`)
     .join('\n\n---\n\n');
 
@@ -2615,6 +2618,7 @@ ${userRefs ? `\n【ユーザー追加の参考投稿（最優先で参考にす�
     if (posts.length === 0) throw new Error('投稿の解析に失敗しました');
 
     renderResults(posts);
+    renderUsedSamples();
     runAnalysis(posts, apiKey, userRefs);
 
   } catch (e) {
@@ -2639,6 +2643,21 @@ function parseGeneratedPosts(text) {
     return parts;
   }
   return posts;
+}
+
+function renderUsedSamples() {
+  const area = document.getElementById('usedSamplesArea');
+  if (!area || lastUsedSamples.length === 0) return;
+  let html = `<div style="margin-top:24px;border-top:1px solid var(--border);padding-top:18px;">
+    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;">今回参照したサンプル（${lastUsedSamples.length}本）</div>`;
+  lastUsedSamples.forEach((x, i) => {
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+      <div style="margin-bottom:6px;">${makeTypeTags(x.m)}</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-wrap;word-break:break-word;max-height:100px;overflow:hidden;">${escHtml(x.s.slice(0, 120))}${x.s.length > 120 ? '…' : ''}</div>
+    </div>`;
+  });
+  html += '</div>';
+  area.innerHTML = html;
 }
 
 function renderResults(posts) {
